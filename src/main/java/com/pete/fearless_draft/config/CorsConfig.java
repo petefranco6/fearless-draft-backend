@@ -15,7 +15,7 @@ public class CorsConfig {
                 registry.addMapping("/**")
                         .allowedOrigins(
                                 "http://localhost:5173",
-                                "https://YOUR_VERCEL_DOMAIN.vercel.app"
+                                "https://fearless-draft-fronted.vercel.app"
                         )
                         .allowedMethods("GET","POST","PUT","PATCH","DELETE","OPTIONS")
                         .allowedHeaders("*");
