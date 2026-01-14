@@ -1,6 +1,7 @@
 package com.pete.fearless_draft;
 
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -13,6 +14,7 @@ public class DraftManager implements DraftTimeoutHandler {
     private final DraftService draftService;
     private final DraftTimerService timerService;
     private final SimpMessagingTemplate brokerMessagingTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final Map<String, DraftState> drafts = new ConcurrentHashMap<>();
 
@@ -21,11 +23,13 @@ public class DraftManager implements DraftTimeoutHandler {
     public DraftManager(
             DraftService draftService,
             DraftTimerService timerService,
-            SimpMessagingTemplate brokerMessagingTemplate
+            SimpMessagingTemplate brokerMessagingTemplate,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.draftService = draftService;
         this.timerService = timerService;
         this.brokerMessagingTemplate = brokerMessagingTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     private boolean isStarted(DraftState s) {
@@ -166,6 +170,7 @@ public class DraftManager implements DraftTimeoutHandler {
         drafts.put(draftId, updated);
         timerService.schedule(updated);
         broadcast(updated);
+        publishCompletionIfNeeded(current, updated);
     }
 
     public void setPreview(String draftId, DraftTurn team, String championId) {
@@ -204,6 +209,7 @@ public class DraftManager implements DraftTimeoutHandler {
         drafts.put(draftId, updated);
         timerService.schedule(updated);
         broadcast(updated);
+        publishCompletionIfNeeded(current, updated);
     }
 
     /* ---------------- HELPERS ---------------- */
@@ -313,4 +319,9 @@ public class DraftManager implements DraftTimeoutHandler {
         return withServerTime(get(draftId));
     }
 
+    private void publishCompletionIfNeeded(DraftState previous, DraftState updated) {
+        if (previous.phase() != DraftPhase.COMPLETE && updated.phase() == DraftPhase.COMPLETE) {
+            eventPublisher.publishEvent(new DraftCompletedEvent(updated));
+        }
+    }
 }
