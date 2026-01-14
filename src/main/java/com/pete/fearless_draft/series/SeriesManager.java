@@ -1,8 +1,6 @@
 package com.pete.fearless_draft.series;
 
 import com.pete.fearless_draft.*;
-import org.springframework.context.event.EventListener;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -13,18 +11,12 @@ public class SeriesManager {
 
     private final DraftService draftService;
     private final DraftManager draftManager;
-    private final SimpMessagingTemplate brokerMessagingTemplate;
 
     private final Map<String, SeriesState> seriesMap = new ConcurrentHashMap<>();
 
-    public SeriesManager(
-            DraftService draftService,
-            DraftManager draftManager,
-            SimpMessagingTemplate brokerMessagingTemplate
-    ) {
+    public SeriesManager(DraftService draftService, DraftManager draftManager) {
         this.draftService = draftService;
         this.draftManager = draftManager;
-        this.brokerMessagingTemplate = brokerMessagingTemplate;
     }
 
     public DraftState createSeries(CreateSeriesRequest req) {
@@ -122,23 +114,5 @@ public class SeriesManager {
         SeriesState s = seriesMap.get(seriesId);
         if (s == null) throw new IllegalArgumentException("Series not found: " + seriesId);
         return s;
-    }
-
-    @EventListener
-    public void onDraftCompleted(DraftCompletedEvent event) {
-        DraftState state = event.state();
-        if (state.mode() != DraftMode.FEARLESS_SERIES || state.seriesId() == null) return;
-
-        SeriesState series = seriesMap.get(state.seriesId());
-        if (series == null) return;
-        if (!series.currentDraftId().equals(state.draftId())) return;
-        if (series.currentGame() >= series.bestOf()) return;
-
-        DraftState nextDraft = nextGame(series.seriesId());
-        DraftState payload = draftManager.getForClient(nextDraft.draftId());
-        brokerMessagingTemplate.convertAndSend(
-                "/topic/series/" + series.seriesId(),
-                new SeriesNextGame(series.seriesId(), payload)
-        );
     }
 }
