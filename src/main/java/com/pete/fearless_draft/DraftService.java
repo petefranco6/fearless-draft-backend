@@ -56,6 +56,10 @@ public class DraftService {
         newPreviews.putAll(state.previews());
         newPreviews.put(team, championId);
 
+        // These are filled accurately at broadcast-time; stored state can keep 0s
+        long serverNow = 0L;
+        long turnEndsAt = 0L;
+
         return new DraftState(
                 state.draftId(),
                 state.blueTeamName(),
@@ -71,6 +75,8 @@ public class DraftService {
                 state.lastPickedChampion(),
                 state.turnStartedAt(),
                 state.turnDurationSeconds(),
+                serverNow,
+                turnEndsAt,
                 state.blueReady(),
                 state.redReady(),
                 state.mode(),
@@ -87,6 +93,10 @@ public class DraftService {
         previews.putAll(next.previews());
         previews.remove(action.team());
 
+        // These are filled accurately at broadcast-time; stored state can keep 0s
+        long serverNow = 0L;
+        long turnEndsAt = 0L;
+
         return new DraftState(
                 next.draftId(),
                 state.blueTeamName(),
@@ -102,6 +112,8 @@ public class DraftService {
                 next.lastPickedChampion(),
                 next.turnStartedAt(),
                 next.turnDurationSeconds(),
+                serverNow,
+                turnEndsAt,
                 next.blueReady(),
                 next.redReady(),
                 next.mode(),

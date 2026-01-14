@@ -39,6 +39,9 @@ public class DraftEngine {
 
                 0L,           // turnStartedAt (stamped by DraftManager)
                 0,            // turnDurationSeconds (stamped by DraftManager)
+                0L,           // serverNow (enriched at broadcast-time)
+                0L,           // turnEndsAt (enriched at broadcast-time)
+
                 false,        // blueReady
                 false,        // redReady
 
@@ -128,6 +131,9 @@ public class DraftEngine {
 
                     0L,
                     0,
+                    0L, // serverNow
+                    0L, // turnEndsAt
+
                     state.blueReady(),
                     state.redReady(),
 
@@ -159,6 +165,9 @@ public class DraftEngine {
 
                 0L,
                 0,
+                0L, // serverNow
+                0L, // turnEndsAt
+
                 state.blueReady(),
                 state.redReady(),
 

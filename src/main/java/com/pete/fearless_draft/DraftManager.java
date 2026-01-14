@@ -125,6 +125,8 @@ public class DraftManager implements DraftTimeoutHandler {
                 current.lastPickedChampion(),
                 current.turnStartedAt(),
                 current.turnDurationSeconds(),
+                0L,   // serverNow - filled at broadcast time
+                0L,   // turnEndsAt - filled at broadcast time
                 blueReady,
                 redReady,
 
@@ -164,7 +166,6 @@ public class DraftManager implements DraftTimeoutHandler {
         drafts.put(draftId, updated);
         timerService.schedule(updated);
         broadcast(updated);
-
     }
 
     public void setPreview(String draftId, DraftTurn team, String championId) {
@@ -177,7 +178,6 @@ public class DraftManager implements DraftTimeoutHandler {
         DraftState updated = draftService.setPreview(current, team, championId);
         drafts.put(draftId, updated);
         broadcast(updated);
-
     }
 
     /* ---------------- TIMEOUT ---------------- */
@@ -208,12 +208,45 @@ public class DraftManager implements DraftTimeoutHandler {
 
     /* ---------------- HELPERS ---------------- */
 
+    private DraftState withServerTime(DraftState s) {
+        long now = System.currentTimeMillis();
+        long endsAt = (s.turnStartedAt() > 0 && s.turnDurationSeconds() > 0)
+                ? s.turnStartedAt() + (s.turnDurationSeconds() * 1000L)
+                : 0L;
+
+        return new DraftState(
+                s.draftId(),
+                s.blueTeamName(),
+                s.redTeamName(),
+                s.firstPickTeam(),
+                s.phase(),
+                s.step(),
+                s.turn(),
+                s.bluePicks(),
+                s.redPicks(),
+                s.bans(),
+                s.previews(),
+                s.lastPickedChampion(),
+                s.turnStartedAt(),
+                s.turnDurationSeconds(),
+                now,
+                endsAt,
+                s.blueReady(),
+                s.redReady(),
+                s.mode(),
+                s.seriesId(),
+                s.gameNumber(),
+                s.lockedChampionIds()
+        );
+    }
+
     private void broadcast(DraftState state) {
-        brokerMessagingTemplate.convertAndSend("/topic/draft/" + state.draftId(), state);
+        brokerMessagingTemplate.convertAndSend("/topic/draft/" + state.draftId(), withServerTime(state));
     }
 
     private DraftState stampTurnTiming(DraftState state) {
         if (state.phase() == DraftPhase.COMPLETE) {
+            // Stored state can be zeros; broadcast() will enrich serverNow accurately
             return new DraftState(
                     state.draftId(),
                     state.blueTeamName(),
@@ -229,10 +262,10 @@ public class DraftManager implements DraftTimeoutHandler {
                     state.lastPickedChampion(),
                     0L,
                     0,
+                    0L,   // serverNow
+                    0L,   // turnEndsAt
                     state.blueReady(),
                     state.redReady(),
-
-                    // ✅ preserve mode fields
                     state.mode(),
                     state.seriesId(),
                     state.gameNumber(),
@@ -241,7 +274,9 @@ public class DraftManager implements DraftTimeoutHandler {
         }
 
         long now = System.currentTimeMillis();
+        long endsAt = now + (TURN_DURATION_SECONDS * 1000L);
 
+        // Store the true turnStartedAt/duration; serverNow/turnEndsAt may be filled at broadcast-time too
         return new DraftState(
                 state.draftId(),
                 state.blueTeamName(),
@@ -257,10 +292,10 @@ public class DraftManager implements DraftTimeoutHandler {
                 state.lastPickedChampion(),
                 now,
                 TURN_DURATION_SECONDS,
+                0L,   // serverNow
+                0L,   // turnEndsAt
                 state.blueReady(),
                 state.redReady(),
-
-                // ✅ preserve mode fields
                 state.mode(),
                 state.seriesId(),
                 state.gameNumber(),
@@ -273,4 +308,9 @@ public class DraftManager implements DraftTimeoutHandler {
         if (preview == null || preview.isBlank()) return null;
         return new DraftAction(state.draftId(), state.turn(), preview);
     }
+
+    public DraftState getForClient(String draftId) {
+        return withServerTime(get(draftId));
+    }
+
 }

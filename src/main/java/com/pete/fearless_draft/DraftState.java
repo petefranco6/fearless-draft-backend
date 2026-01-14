@@ -19,6 +19,9 @@ public record DraftState(
         long turnStartedAt,
         int turnDurationSeconds,
 
+        long serverNow,     // ✅ NEW: epoch ms at send time
+        long turnEndsAt,    // ✅ NEW: epoch ms (turnStartedAt + duration*1000)
+
         boolean blueReady,
         boolean redReady,
 

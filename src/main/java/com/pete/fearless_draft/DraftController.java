@@ -28,7 +28,7 @@ public class DraftController {
 
     @GetMapping("/{draftId}")
     public DraftState getDraft(@PathVariable String draftId) {
-        return draftManager.get(draftId);
+        return draftManager.getForClient(draftId);
     }
 
 }
