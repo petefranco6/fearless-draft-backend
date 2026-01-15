@@ -1,5 +1,6 @@
 package com.pete.fearless_draft.series;
 
+import com.pete.fearless_draft.CreateDraftRequest;
 import com.pete.fearless_draft.DraftState;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,8 +20,8 @@ public class SeriesController {
     }
 
     @PostMapping("/{seriesId}/next")
-    public DraftState nextGame(@PathVariable String seriesId) {
-        return seriesManager.nextGame(seriesId);
+    public DraftState nextGame(@PathVariable String seriesId, @RequestBody CreateDraftRequest req) {
+        return seriesManager.nextGame(seriesId, req);
     }
 
     @GetMapping("/{seriesId}")

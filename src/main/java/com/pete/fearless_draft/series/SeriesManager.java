@@ -1,6 +1,7 @@
 package com.pete.fearless_draft.series;
 
 import com.pete.fearless_draft.*;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -11,12 +12,14 @@ public class SeriesManager {
 
     private final DraftService draftService;
     private final DraftManager draftManager;
+    private final SimpMessagingTemplate brokerMessagingTemplate;
 
     private final Map<String, SeriesState> seriesMap = new ConcurrentHashMap<>();
 
-    public SeriesManager(DraftService draftService, DraftManager draftManager) {
+    public SeriesManager(DraftService draftService, DraftManager draftManager, SimpMessagingTemplate brokerMessagingTemplate) {
         this.draftService = draftService;
         this.draftManager = draftManager;
+        this.brokerMessagingTemplate = brokerMessagingTemplate;
     }
 
     public DraftState createSeries(CreateSeriesRequest req) {
@@ -50,13 +53,20 @@ public class SeriesManager {
 
         seriesMap.put(seriesId, s);
 
-        // store + broadcast the new draft (timer starts only after both teams ready)
         draftManager.registerDraft(game1);
+
+        brokerMessagingTemplate.convertAndSend(
+                "/topic/series/" + seriesId,
+                new SeriesDraftCreatedEvent("SERIES_DRAFT_CREATED", seriesId, 1, draftId, "UNKOWN")
+        );
 
         return game1;
     }
 
-    public DraftState nextGame(String seriesId) {
+    /**
+     * Create the next game's draft using submitted settings (like CreateDraftPage).
+     */
+    public DraftState nextGame(String seriesId, CreateDraftRequest req) {
         SeriesState s = seriesMap.get(seriesId);
         if (s == null) throw new IllegalArgumentException("Series not found: " + seriesId);
 
@@ -67,6 +77,17 @@ public class SeriesManager {
         DraftState currentDraft = draftManager.get(s.currentDraftId());
         if (currentDraft.phase() != DraftPhase.COMPLETE) {
             throw new IllegalStateException("Current game is not complete yet");
+        }
+
+        // Validate request
+        String blueName = req.getBlueTeamName() == null ? "" : req.getBlueTeamName().trim();
+        String redName  = req.getRedTeamName() == null ? "" : req.getRedTeamName().trim();
+
+        if (blueName.isBlank() || redName.isBlank()) {
+            throw new IllegalArgumentException("Team names are required");
+        }
+        if (req.getFirstPickTeam() == null) {
+            throw new IllegalArgumentException("firstPickTeam is required");
         }
 
         // picks-only fearless locks (exclude NONE)
@@ -81,21 +102,23 @@ public class SeriesManager {
         int nextGameNum = s.currentGame() + 1;
         String nextDraftId = UUID.randomUUID().toString();
 
+
         DraftState nextDraft = draftService.createFearlessDraft(
                 nextDraftId,
-                s.blueTeamName(),
-                s.redTeamName(),
-                s.firstPickTeam(),
+                blueName,
+                redName,
+                req.getFirstPickTeam(),
                 s.seriesId(),
                 nextGameNum,
                 List.copyOf(newLocked)
         );
 
+        // Update series settings to match what the user just chose
         SeriesState updatedSeries = new SeriesState(
                 s.seriesId(),
-                s.blueTeamName(),
-                s.redTeamName(),
-                s.firstPickTeam(),
+                blueName,
+                redName,
+                req.getFirstPickTeam(),
                 s.bestOf(),
                 nextGameNum,
                 nextDraftId,
@@ -104,11 +127,16 @@ public class SeriesManager {
 
         seriesMap.put(seriesId, updatedSeries);
 
-        // store + broadcast next game draft (ready-check will start it)
         draftManager.registerDraft(nextDraft);
+
+        brokerMessagingTemplate.convertAndSend(
+                "/topic/series/" + seriesId,
+                new SeriesDraftCreatedEvent("SERIES_DRAFT_CREATED", seriesId, nextGameNum, nextDraftId, "UNKNOWN")
+        );
 
         return nextDraft;
     }
+
 
     public SeriesState getSeries(String seriesId) {
         SeriesState s = seriesMap.get(seriesId);
